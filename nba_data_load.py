@@ -13,10 +13,8 @@ from sqlalchemy import create_engine
 #   Checks for schema prior to data load
 #---------------------------------------------
 def check_for_schema(password):
-
     engine = create_engine('postgresql://ncotton:' + password + '@dev-pgsql01.postgres.database.azure.com:5432/nba_stat',client_encoding='utf8')
     conn = engine.connect()
-
     try:
         res = conn.execute('select count(1) from information_schema.schemata where schema_name = \'nba\'')
         if res.fetchone()[0] != 1:
@@ -31,10 +29,8 @@ def check_for_schema(password):
 #   Checks for table prior to data load
 #---------------------------------------------
 def check_for_tbl(password):
-
     engine = create_engine('postgresql://ncotton:' + password + '@dev-pgsql01.postgres.database.azure.com:5432/nba_stat',client_encoding='utf8')
     conn = engine.connect()
-
     try:
         res = conn.execute('select count(1) from information_schema.tables where table_name = \'player_per_game\' and table_schema = \'nba\'')
         if res.fetchone()[0] == 1:
