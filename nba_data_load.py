@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 #   Checks for schema prior to data load
 #---------------------------------------------
 def check_for_schema(password):
-    engine = create_engine('postgresql://ncotton:' + password + '@dev-pgsql01.postgres.database.azure.com:5432/nba_stat',client_encoding='utf8')
+    engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting', client_encoding='utf8')
     conn = engine.connect()
     try:
         res = conn.execute('select count(1) from information_schema.schemata where schema_name = \'nba\'')
@@ -23,13 +23,13 @@ def check_for_schema(password):
         else:
             print('NBA schema present, skipping creation')
     except psycopg2.OperationalError as e:
-        print("Unable to query dev-pgsql01", e)
+        print("Unable to query reporting db ", e)
 
 #---------------------------------------------
 #   Checks for table prior to data load
 #---------------------------------------------
 def check_for_tbl(password):
-    engine = create_engine('postgresql://ncotton:' + password + '@dev-pgsql01.postgres.database.azure.com:5432/nba_stat',client_encoding='utf8')
+    engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting',client_encoding='utf8')
     conn = engine.connect()
     try:
         res = conn.execute('select count(1) from information_schema.tables where table_name = \'player_per_game\' and table_schema = \'nba\'')
@@ -38,13 +38,13 @@ def check_for_tbl(password):
         else:
             print('nba.player_per_game not present, skipping truncation')
     except psycopg2.OperationalError as e:
-        print("Unable to query dev-pgsql01", e)
+        print("Unable to query reporting db ", e)
 
 #---------------------------------------------
 #   Truncates table prior to data load
 #---------------------------------------------
 def pg_truncate(password):
-    engine = create_engine('postgresql://ncotton:' + password + '@dev-pgsql01.postgres.database.azure.com:5432/nba_stat',client_encoding='utf8')
+    engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting',client_encoding='utf8')
     conn = engine.connect()
     try:
         conn.execute('TRUNCATE TABLE nba.player_per_game')
@@ -74,7 +74,7 @@ def get_player_data(team, password):
     #-----------------------------------------
     #   Connect to Azure DB and load data
     #-----------------------------------------
-    engine = create_engine('postgresql://ncotton:' + password + '@dev-pgsql01.postgres.database.azure.com:5432/nba_stat',client_encoding='utf8')
+    engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting',client_encoding='utf8')
     df.to_sql(
         schema='nba',
         name='player_per_game',
@@ -96,7 +96,7 @@ def main():
         'SAC', 'SAS', 'TOR', 'UTA', 'WAS'
     ]
 
-    password = gp.getpass('Enter admin password ncotton@dev-pgsql01: ')
+    password = gp.getpass('Enter admin password data_load@reporting: ')
 
     check_for_schema(password)
     check_for_tbl(password)
