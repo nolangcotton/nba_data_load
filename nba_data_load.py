@@ -64,15 +64,18 @@ def get_player_data(team, password):
     df['Team Name'] = team
 
     #-----------------------------------------
-    #   Fix column names
+    #   Fix column names & Drop un-needed
     #-----------------------------------------
-    pattern = re.compile('%')
+    df.rename(columns={'Unnamed: 1': 'name', 'PTS/G': 'PPG', 'Team Name': 'teamname'}, inplace=True)
+    df.drop(['Rk'], axis=1, inplace=True)
+    pctg_pattern = re.compile('%')
     for col in df:
-        if re.search(pattern, col):
-            df.rename(columns={col: col.replace('%', 'PCT')}, inplace=True)
+        if re.search(pctg_pattern, col):
+            df.rename(columns={col: col.replace('%', 'pct')}, inplace=True)
+        df.rename(columns={col: col.lower()}, inplace=True)
 
     #-----------------------------------------
-    #   Connect to Azure DB and load data
+    #   Connect to DB and load data
     #-----------------------------------------
     engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting',client_encoding='utf8')
     df.to_sql(
