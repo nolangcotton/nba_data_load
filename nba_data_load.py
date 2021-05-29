@@ -4,10 +4,11 @@
 #   Author : Nolan Cotton
 #--------------------------------------------------------------------------------
 import pandas as pd
-import getpass as gp
+import pgpasslib
 import re
 import psycopg2
 from sqlalchemy import create_engine
+from selenium import webdriver
 
 #---------------------------------------------
 #   Checks for schema prior to data load
@@ -26,32 +27,6 @@ def check_for_schema(password):
         print("Unable to query reporting db ", e)
 
 #---------------------------------------------
-#   Checks for table prior to data load
-#---------------------------------------------
-def check_for_tbl(password):
-    engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting',client_encoding='utf8')
-    conn = engine.connect()
-    try:
-        res = conn.execute('select count(1) from information_schema.tables where table_name = \'player_per_game\' and table_schema = \'nba\'')
-        if res.fetchone()[0] == 1:
-            pg_truncate(password)
-        else:
-            print('nba.player_per_game not present, skipping truncation')
-    except psycopg2.OperationalError as e:
-        print("Unable to query reporting db ", e)
-
-#---------------------------------------------
-#   Truncates table prior to data load
-#---------------------------------------------
-def pg_truncate(password):
-    engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting',client_encoding='utf8')
-    conn = engine.connect()
-    try:
-        conn.execute('TRUNCATE TABLE nba.player_per_game')
-    except psycopg2.OperationalError as e:
-        print("Unable to Truncate...", e)
-
-#---------------------------------------------
 #   Retrieves player data for provided team
 #---------------------------------------------
 def get_player_data(team, password):
@@ -59,7 +34,7 @@ def get_player_data(team, password):
     #-----------------------------------------
     #   Get Player Data from URL
     #-----------------------------------------
-    url = 'https://www.basketball-reference.com/teams/' + team + '/2021.html'
+    url = f'https://www.basketball-reference.com/teams/{team}/2021.html'
     df = pd.read_html(url)[1]
     df['Team Name'] = team
 
@@ -77,19 +52,51 @@ def get_player_data(team, password):
     #-----------------------------------------
     #   Connect to DB and load data
     #-----------------------------------------
-    engine = create_engine('postgresql://data_load:' + password + '@localhost:5432/reporting',client_encoding='utf8')
-    df.to_sql(
-        schema='nba',
-        name='player_per_game',
-        con=engine,
-        index=False,
-        if_exists='append'
-    )
+    engine = create_engine(f'postgresql://data_load:{password}@localhost:5432/reporting',client_encoding='utf8')
+    df.to_sql(schema='nba', name='player_stats', con=engine, index=False, if_exists='replace')
+
+#---------------------------------------------
+#   Drops team data table
+#---------------------------------------------
+def drop_team_data(password):
+    engine = create_engine(f'postgresql://data_load:{password}@localhost:5432/reporting', client_encoding='utf8')
+    conn = engine.connect()
+    try:
+        conn.execute('drop table if exists nba.team_stats')
+    except psycopg2.OperationalError as e:
+        print("Unable to drop reporting db ", e)
+
+#---------------------------------------------
+#   Retrieves team data and loads to tbl
+#---------------------------------------------
+def get_team_data(team, password):
+
+    #--------------------------------------------------------------
+    #   Get Team Data from URL, render the site before pulling html
+    #--------------------------------------------------------------
+    url = f'https://www.basketball-reference.com/teams/{team}/2021.html'
+    driver = webdriver.Safari()
+    driver.get(url)
+    html = driver.page_source
+
+    #--------------------------
+    #   Reformat dataframe
+    #--------------------------
+    df = pd.read_html(html)[3]
+    df['Team Name'] = team
+
+    #--------------------------
+    #   Append team_stats table
+    #--------------------------
+    engine = create_engine(f'postgresql://data_load:{password}@localhost:5432/reporting',client_encoding='utf8')
+    df.to_sql(schema='nba', name='team_stats', con=engine, index=False, if_exists='append')
+
 
 #-----------------------------
 # Main Routine & Exec
 #-----------------------------
 def main():
+
     team_names = [
         'BOS', 'ATL', 'BRK', 'CHO', 'CHI',
         'CLE', 'DAL', 'DEN', 'DET', 'GSW',
@@ -99,13 +106,13 @@ def main():
         'SAC', 'SAS', 'TOR', 'UTA', 'WAS'
     ]
 
-    password = gp.getpass('Enter admin password data_load@reporting: ')
-
+    password = pgpasslib.getpass('localhost', 5432, 'reporting', 'data_load')
     check_for_schema(password)
-    check_for_tbl(password)
+    drop_team_data(password)
 
     for team in team_names:
         get_player_data(team, password)
+        get_team_data(team, password)
 
 if __name__ == '__main__':
     main()
